@@ -213,3 +213,23 @@ export async function refreshSession(rawRefreshToken) {
     };
   });
 }
+
+export async function logoutUser(rawRefreshToken) {
+  if (!rawRefreshToken) {
+    return;
+  }
+
+  const tokenHash = hashRefreshToken(rawRefreshToken);
+
+  await db
+    .update(refreshTokens)
+    .set({
+      revokedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(refreshTokens.tokenHash, tokenHash),
+        isNull(refreshTokens.revokedAt),
+      ),
+    );
+}

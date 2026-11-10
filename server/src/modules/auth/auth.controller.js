@@ -1,6 +1,14 @@
-import { registerOrganization, loginUser } from "./auth.service.js";
-import { REFRESH_COOKIE_NAME, getRefreshCookieOptions } from "./auth.cookie.js";
-
+import {
+  registerOrganization,
+  loginUser,
+  refreshSession,
+} from "./auth.service.js";
+import {
+  REFRESH_COOKIE_NAME,
+  getRefreshCookieOptions,
+  getRefreshCookieClearOptions,
+} from "./auth.cookie.js";
+import { logoutUser } from "./auth.service.js";
 export async function register(req, res) {
   try {
     const result = await registerOrganization(req.validated.body);
@@ -73,6 +81,88 @@ export async function login(req, res) {
     return res.status(500).json({
       success: false,
       message: "Something went wrong during login",
+    });
+  }
+}
+
+export async function refresh(req, res) {
+  try {
+    // 1. Read refresh token from the browser cookie
+    const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: "Refresh token is missing",
+      });
+    }
+
+    // 2. Validate and rotate the refresh token
+    const result = await refreshSession(refreshToken);
+
+    // 3. Handle invalid, expired or revoked tokens
+    if (!result) {
+      res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieClearOptions());
+
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired refresh token",
+      });
+    }
+
+    // 4. Handle inactive account
+    if (result.status === "inactive") {
+      res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieClearOptions());
+
+      return res.status(403).json({
+        success: false,
+        message: "Your account is inactive",
+      });
+    }
+
+    // 5. Extract the new refresh token
+    const { refreshToken: newRefreshToken, ...responseData } = result;
+
+    // 6. Set the replacement refresh token cookie
+    res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, getRefreshCookieOptions());
+
+    // 7. Return the new access token
+    return res.status(200).json({
+      success: true,
+      message: "Token refreshed successfully",
+      data: {
+        accessToken: responseData.accessToken,
+        user: responseData.user,
+      },
+    });
+  } catch (error) {
+    console.error("Refresh token error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while refreshing token",
+    });
+  }
+}
+
+export async function logout(req, res) {
+  try {
+    const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+
+    await logoutUser(refreshToken);
+
+    res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieClearOptions());
+
+    return res.status(200).json({
+      success: true,
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong during logout",
     });
   }
 }
