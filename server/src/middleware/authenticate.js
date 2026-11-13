@@ -1,9 +1,15 @@
 import jwt from "jsonwebtoken";
-import { env } from "../config/env.js";
 
-export function authenticate(req, res, next) {
+import { env } from "../config/env.js";
+import { db } from "../db/index.js";
+import { users } from "../db/schema.js";
+import { and, eq } from "drizzle-orm";
+
+export async function authenticate(req, res, next) {
+  let decoded;
+
+  // STEP 1: Verify the access token
   try {
-    // 1. Get Authorization header
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
@@ -13,24 +19,21 @@ export function authenticate(req, res, next) {
       });
     }
 
-    // 2. Extract Bearer token
     const match = authHeader.match(/^Bearer\s+(\S+)$/i);
 
     if (!match) {
       return res.status(401).json({
         success: false,
-        message: "Invalid authorization format",
+        message: "Invalid authorization header",
       });
     }
 
     const token = match[1];
 
-    // 3. Verify JWT
-    const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET, {
+    decoded = jwt.verify(token, env.JWT_ACCESS_SECRET, {
       algorithms: ["HS256"],
     });
 
-    // 4. Validate required JWT claims
     if (
       typeof decoded !== "object" ||
       !decoded.sub ||
@@ -42,16 +45,6 @@ export function authenticate(req, res, next) {
         message: "Invalid access token",
       });
     }
-
-    // 5. Attach authenticated user to request
-    req.user = {
-      sub: decoded.sub,
-      organizationId: decoded.organizationId,
-      role: decoded.role,
-    };
-
-    // 6. Continue to the next middleware/controller
-    next();
   } catch (error) {
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
@@ -64,5 +57,42 @@ export function authenticate(req, res, next) {
       success: false,
       message: "Invalid or expired access token",
     });
+  }
+
+  // STEP 2: Check the user's current database record
+  try {
+    const [user] = await db
+      .select({
+        id: users.id,
+        organizationId: users.organizationId,
+        role: users.role,
+        isActive: users.isActive,
+      })
+      .from(users)
+      .where(
+        and(
+          eq(users.id, decoded.sub),
+          eq(users.organizationId, decoded.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: "User account is inactive or no longer exists",
+      });
+    }
+
+    // STEP 3: Attach current database information to the request
+    req.user = {
+      sub: user.id,
+      organizationId: user.organizationId,
+      role: user.role,
+    };
+
+    next();
+  } catch (error) {
+    next(error);
   }
 }

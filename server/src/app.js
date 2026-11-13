@@ -3,6 +3,8 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import authRoutes from "./modules/auth/auth.routes.js";
 import leadsRoutes from "./modules/leads/lead.routes.js";
+import usersRoutes from "./modules/users/users.routes.js";
+import projectsRoutes from "./modules/projects/projects.routes.js";
 
 import corsMiddleware from "./config/cors.js";
 
@@ -30,5 +32,7 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/leads", leadsRoutes);
+app.use("/api/users", usersRoutes);
+app.use("/api/projects", projectsRoutes);
 
 export default app;
