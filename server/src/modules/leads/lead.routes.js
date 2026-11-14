@@ -5,9 +5,9 @@ import { authorize } from "../../middleware/authorize.js";
 import { validate } from "../../middleware/validate.js";
 
 import {
-  getLeadById,
-  getLeads,
   createLead,
+  getLeads,
+  getLeadById,
   updateLead,
   deleteLead,
 } from "./leads.controller.js";
@@ -19,46 +19,63 @@ import {
   updateLeadSchema,
 } from "./leads.validation.js";
 
+import { assignLead } from "../assignments/assignments.controller.js";
+import { assignLeadSchema } from "../assignments/assignments.validation.js";
+
+import {
+  createActivity,
+  getLeadActivities,
+} from "../activities/activities.controller.js";
+
+import { createActivitySchema } from "../activities/activities.validation.js";
+
 const router = Router();
 
-router.post(
-  "/",
-  authenticate,
-  authorize("admin", "agent"),
-  validate(createLeadSchema),
-  createLead,
-);
+// All lead routes require authentication.
+router.use(authenticate);
 
-router.get(
-  "/",
-  authenticate,
-  authorize("admin", "agent"),
-  validate(listLeadsQuerySchema, "query"),
-  getLeads,
-);
+// CREATE LEAD
+router.post("/", validate(createLeadSchema), createLead);
 
-router.get(
-  "/:id",
-  authenticate,
-  authorize("admin", "agent"),
+// GET ALL LEADS
+router.get("/", validate(listLeadsQuerySchema, "query"), getLeads);
+
+// ASSIGN / REASSIGN LEAD (ADMIN ONLY)
+router.patch(
+  "/:id/assign",
+  authorize("admin"),
   validate(leadIdParamSchema, "params"),
-  getLeadById,
+  validate(assignLeadSchema),
+  assignLead,
 );
 
+// GET LEAD BY ID
+router.get("/:id", validate(leadIdParamSchema, "params"), getLeadById);
+
+// UPDATE LEAD
 router.patch(
   "/:id",
-  authenticate,
-  authorize("admin", "agent"),
   validate(leadIdParamSchema, "params"),
   validate(updateLeadSchema),
   updateLead,
 );
 
-router.delete(
-  "/:id",
-  authenticate,
-  authorize("admin", "agent"),
+// DELETE LEAD (SOFT DELETE)
+router.delete("/:id", validate(leadIdParamSchema, "params"), deleteLead);
+
+// CREATE LEAD ACTIVITY
+router.post(
+  "/:id/activities",
   validate(leadIdParamSchema, "params"),
-  deleteLead,
+  validate(createActivitySchema),
+  createActivity,
 );
+
+// GET LEAD ACTIVITY HISTORY
+router.get(
+  "/:id/activities",
+  validate(leadIdParamSchema, "params"),
+  getLeadActivities,
+);
+
 export default router;
