@@ -29,6 +29,10 @@ import {
 
 import { createActivitySchema } from "../activities/activities.validation.js";
 
+import { createFollowUp } from "../follow-ups/follow-ups.controller.js";
+
+import { createFollowUpSchema } from "../follow-ups/follow-ups.validation.js";
+
 const router = Router();
 
 // All lead routes require authentication.
@@ -76,6 +80,14 @@ router.get(
   "/:id/activities",
   validate(leadIdParamSchema, "params"),
   getLeadActivities,
+);
+
+// CREATE FOLLOW-UP FOR A LEAD
+router.post(
+  "/:id/follow-ups",
+  validate(leadIdParamSchema, "params"),
+  validate(createFollowUpSchema),
+  createFollowUp,
 );
 
 export default router;
